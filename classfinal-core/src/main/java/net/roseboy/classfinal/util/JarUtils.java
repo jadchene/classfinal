@@ -4,6 +4,7 @@ import java.io.*;
 import java.util.ArrayList;
 import java.util.Enumeration;
 import java.util.List;
+import java.util.Locale;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 import java.util.zip.ZipOutputStream;
@@ -238,12 +239,7 @@ public class JarUtils {
         } catch (UnsupportedEncodingException e) {
         }
 
-        if (path.startsWith("jar:") || path.startsWith("war:")) {
-            path = path.substring(4);
-        }
-        if (path.startsWith("file:")) {
-            path = path.substring(5);
-        }
+        path = removeUrlProtocols(path);
 
         //没解压的war包
         if (path.contains("*")) {
@@ -255,6 +251,10 @@ public class JarUtils {
         }
         //jar
         else if (path.contains("!")) {
+            String archivePath = getOuterArchivePath(path);
+            if (archivePath != null) {
+                return archivePath;
+            }
             return path.substring(0, path.indexOf("!"));
         }
         //普通jar/war
@@ -266,6 +266,56 @@ public class JarUtils {
             return path.substring(0, path.indexOf("/classes/") + 9);
         }
         return null;
+    }
+
+    /**
+     * Strip URL protocol prefixes used by normal and Spring Boot nested jar class loaders.
+     */
+    private static String removeUrlProtocols(String path) {
+        boolean changed = true;
+        while (changed) {
+            changed = false;
+            if (path.startsWith("jar:") || path.startsWith("war:")) {
+                path = path.substring(4);
+                changed = true;
+            }
+            if (path.startsWith("file:")) {
+                path = path.substring(5);
+                changed = true;
+            }
+            if (path.startsWith("nested:")) {
+                path = path.substring(7);
+                changed = true;
+            }
+        }
+        return path;
+    }
+
+    /**
+     * Spring Boot 3 can expose class locations like
+     * nested:/path/app.jar/!BOOT-INF/classes/!/ or nested:/path/app.jar/!BOOT-INF/lib/a.jar!/.
+     * The encrypted metadata is stored in the outer executable archive.
+     */
+    private static String getOuterArchivePath(String path) {
+        String lowerPath = path.toLowerCase(Locale.ROOT);
+        int end = getArchiveEnd(lowerPath, ".jar");
+        if (end < 0) {
+            end = getArchiveEnd(lowerPath, ".war");
+        }
+        return end < 0 ? null : path.substring(0, end);
+    }
+
+    private static int getArchiveEnd(String lowerPath, String extension) {
+        int index = -1;
+        while ((index = lowerPath.indexOf(extension, index + 1)) >= 0) {
+            int end = index + extension.length();
+            if (end == lowerPath.length()
+                    || lowerPath.startsWith("!", end)
+                    || lowerPath.startsWith("/!", end)) {
+                return end;
+            }
+        }
+        return -1;
     }
 
 }

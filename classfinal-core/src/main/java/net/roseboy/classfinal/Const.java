@@ -6,7 +6,7 @@ package net.roseboy.classfinal;
  * @author roseboy
  */
 public class Const {
-    public static final String VERSION = "v1.2.1";
+    public static final String VERSION = "v1.2.1-boot3";
 
     //加密出来的文件名
     public static final String FILE_NAME = ".classes";
